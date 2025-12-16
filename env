@@ -1,0 +1,11 @@
+# Mandrill API Configuration
+MANDRILL_API_KEY=Your_mandrill_API_key_here
+
+# Default email settings (Also can be overridden in scripts)
+DEFAULT_FROM_EMAIL=from_email_address_here
+DEFAULT_FROM_NAME=from_name_here
+DEFAULT_TO_EMAIL=to_email_address_here
+DEFAULT_TO_NAME=to_name_here
+
+# Note: Replace the values above with your actual API_KEY and email addresses
+# Do not commit your actual .env file to version control 
