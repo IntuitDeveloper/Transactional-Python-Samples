@@ -27,7 +27,9 @@ app = Flask(__name__,
     template_folder='templates')
 
 # Set a secret key for session and flash
-app.secret_key = 'your-very-secret-key-12345'
+# In production, use a secure random key from environment variables
+import os
+app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex())
 
 @app.before_request
 def clear_session():

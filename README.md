@@ -35,7 +35,7 @@ All dependencies are listed in `requirements.txt`.
 1. **Clone the repository**
    ```sh
    git clone <your-repo-url>
-   cd sampleapp-mandrill-mailchimp-transactional-python
+   cd Transactional-Python-Samples
    python3 -m venv venv
    source venv/bin/activate  
    cd FlaskApp
@@ -47,15 +47,19 @@ All dependencies are listed in `requirements.txt`.
    ```
 
 3. **Set up environment variables**
-   - Create a `.env` file in the `FlaskApp` directory with the following content:
-     ```env
-     MANDRILL_API_KEY=your-mailchimp-transactional-api-key
-     DEFAULT_FROM_EMAIL=your-from-email@example.com
-     DEFAULT_FROM_NAME=Your Name
-     DEFAULT_TO_EMAIL=recipient@example.com
-     DEFAULT_TO_NAME=Recipient Name
-     ```
-   - Alternatively, edit `config.py` to hardcode these values.
+   ```sh
+   cp env.example .env
+   # Edit .env with your Mandrill API key and email settings
+   ```
+   
+   The `.env` file should contain:
+   ```env
+   MANDRILL_API_KEY=your-mailchimp-transactional-api-key
+   DEFAULT_FROM_EMAIL=your-from-email@example.com
+   DEFAULT_FROM_NAME=Your Name
+   DEFAULT_TO_EMAIL=recipient@example.com
+   DEFAULT_TO_NAME=Recipient Name
+   ```
 
 4. **(Optional) Add sample attachments**
    - Place a `sample.pdf` file in the `FlaskApp` directory for attachment demos.

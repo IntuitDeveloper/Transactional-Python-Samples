@@ -23,7 +23,7 @@ pip3 install mailchimp-transactional python-dotenv
 
 ## Configuration
 
-1. Copy the `.env.example` file to `.env` in the scripts directory:
+1. Copy the `env.example` file to `.env`:
 
 ```bash
 cp env.example .env
