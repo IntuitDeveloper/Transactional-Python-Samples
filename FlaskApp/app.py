@@ -237,8 +237,8 @@ def send_single_email():
     try:
         mailchimp = MailchimpTransactional.Client(MANDRILL_API_KEY)
         message = {
-            'html': '<p>Hello HTML world! from MailChimp transactional API Demo</p>',
-            'text': 'Hello plain world! from MailChimp transactional API Demo',
+            'html': '<p>Hello HTML world! from Mailchimp transactional API Demo</p>',
+            'text': 'Hello plain world! from Mailchimp transactional API Demo',
             'subject': 'Hello world',
             'from_email': DEFAULT_FROM_EMAIL,
             'from_name': DEFAULT_FROM_NAME,
@@ -421,7 +421,7 @@ def send_email_with_template():
             template_content = [
                 {
                     'name': 'welcome_message',
-                    'content': "<hr><p>Thanks for joining <strong>{{company_name}}</strong>! We're excited to have you on board.</p><p><p><p><hr>This email is generated for pre-desinged template, generated for template1<hr>"
+                    'content': "<hr><p>Thanks for joining <strong>{{company_name}}</strong>! We're excited to have you on board.</p><p><p><p><hr>This email is generated for pre-designed template, generated for template1<hr>"
                 }
             ]
         else:
@@ -478,7 +478,7 @@ def send_email_with_template_backup():
         template_content = [
             {
                 'name': 'welcome_message',
-                'content': "<hr><p>Thanks for joining <strong>{{company_name}}</strong>! We're excited to have you on board.</p><p><p><p><hr>This email is generated for pre-desinged template.<hr>"
+                'content': "<hr><p>Thanks for joining <strong>{{company_name}}</strong>! We're excited to have you on board.</p><p><p><p><hr>This email is generated for pre-designed template.<hr>"
             }
         ]
         result = mailchimp.messages.send_template({
