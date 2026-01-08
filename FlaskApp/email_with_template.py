@@ -11,7 +11,7 @@ Requirements:
     - mailchimp-transactional
     - python-dotenv
 
-Note: You must first create a template using create_template.py or via the Mandrill UI.
+Note: Templates will be automatically created if they don't exist.
 """
 
 import os
@@ -22,20 +22,111 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Initialize the API client
-mailchimp = MailchimpTransactional.Client(os.getenv('MANDRILL_API_KEY'))
+
+# Template definitions matching the Mandrill account
+TEMPLATES = {
+    'template1': {
+        'name': 'template1',
+        'subject': 'Hello {{fname}}!',
+        'code': '''<h1>Hello {{fname}}!</h1>
+                <div mc:edit="welcome_message">
+                  <p>Welcome to {{company_name}}.</p>
+                </div>
+                <p>Your account: {{account_id}}</p>''',
+        'text': 'This is a simple greetings from template1.',
+        'labels': ['demo', 'hello'],
+        'mc_edit_region': 'welcome_message'
+    },
+    'template2': {
+        'name': 'template2',
+        'subject': 'Greetings {{fname}}!',
+        'code': '''<h1>Greetings {{fname}}!</h1>
+                <p>Hope your Account: {{account_id}} is all set in Company: {{company_name}}</p>
+                <div mc:edit="goodbye_message">
+                  <p>We will see you soon {{company_name}}.</p>
+                </div>''',
+        'text': 'This is a simple greetings from template2.',
+        'labels': ['demo', 'hello'],
+        'mc_edit_region': 'goodbye_message'
+    }
+}
 
 
-def send_with_template():
+def get_mailchimp_client():
+    """
+    Get a Mailchimp Transactional client.
+    Creates a new client each time to ensure correct API key is used.
+    """
+    api_key = os.getenv('MANDRILL_API_KEY')
+    if not api_key:
+        raise ValueError("MANDRILL_API_KEY not found in environment variables")
+    return MailchimpTransactional.Client(api_key)
+
+
+def template_exists(template_name):
+    """
+    Check if a template exists in Mandrill.
+    """
+    try:
+        client = get_mailchimp_client()
+        templates = client.templates.list({'label': ''})
+        return any(t['name'] == template_name for t in templates)
+    except ApiClientError:
+        return False
+
+
+def ensure_template_exists(template_name):
+    """
+    Ensure a template exists, creating it if necessary.
+    Returns True if template exists or was created successfully.
+    """
+    if template_exists(template_name):
+        print(f'Template "{template_name}" already exists.')
+        return True
+    
+    if template_name not in TEMPLATES:
+        print(f'Unknown template: {template_name}')
+        return False
+    
+    template_def = TEMPLATES[template_name]
+    
+    template_data = {
+        'name': template_def['name'],
+        'from_email': os.getenv('DEFAULT_FROM_EMAIL', 'test@example.org'),
+        'from_name': os.getenv('DEFAULT_FROM_NAME', 'Test Sender'),
+        'subject': template_def['subject'],
+        'code': template_def['code'],
+        'text': template_def['text'],
+        'publish': False,
+        'labels': template_def['labels']
+    }
+    
+    try:
+        client = get_mailchimp_client()
+        response = client.templates.add(template_data)
+        print(f'Template "{template_name}" created successfully!')
+        return True
+    except ApiClientError as error:
+        print(f'Error creating template: {error.text}')
+        return False
+
+
+def send_with_template(template_name='template1'):
     """
     Send an email using a stored template.
+    Creates the template first if it doesn't exist.
     """
-    template_name = 'hello-template'
+    # Ensure template exists before sending
+    if not ensure_template_exists(template_name):
+        print(f'Failed to ensure template "{template_name}" exists.')
+        return None
+
+    template_def = TEMPLATES.get(template_name, TEMPLATES['template1'])
 
     message = {
         'from_email': os.getenv('DEFAULT_FROM_EMAIL', 'test@example.org'),
         'from_name': os.getenv('DEFAULT_FROM_NAME', 'Test Sender'),
-        'subject': 'Welcome, {{fname}}',  # Can override template default
+        'subject': 'Welcome, {{fname}}',
         'to': [
             {
                 'email': os.getenv('DEFAULT_TO_EMAIL', 'recipient@example.org'),
@@ -59,16 +150,25 @@ def send_with_template():
         'tags': ['onboarding', 'welcome']
     }
 
-    # Replace mc:edit regions in template
-    template_content = [
-        {
-            'name': 'welcome_message',
-            'content': '<p>Thanks for joining <strong>{{company_name}}</strong>! We\'re excited to have you on board.</p>'
-        }
-    ]
+    # Template content for mc:edit regions
+    if template_name == 'template1':
+        template_content = [
+            {
+                'name': 'welcome_message',
+                'content': "<p>Thanks for joining <strong>{{company_name}}</strong>! We're excited to have you on board.</p>"
+            }
+        ]
+    else:
+        template_content = [
+            {
+                'name': 'goodbye_message',
+                'content': "<p>We don't have much updates, but this email is for your account: {{account_id}} in company: {{company_name}}</p>"
+            }
+        ]
 
     try:
-        result = mailchimp.messages.send_template({
+        client = get_mailchimp_client()
+        result = client.messages.send_template({
             'template_name': template_name,
             'template_content': template_content,
             'message': message
@@ -93,19 +193,17 @@ def send_with_template():
         print('=' * 50)
         print(f'Mandrill API Error: {error.text}')
         print('=' * 50)
-
-        if 'Unknown_Template' in str(error.text):
-            print(f'\nTemplate "{template_name}" does not exist.')
-            print('Please create it first using create_template.py')
-
         return None
 
 
-def send_template_to_multiple_recipients():
+def send_template_to_multiple_recipients(template_name='template1'):
     """
     Send a template-based email to multiple recipients with personalized data.
     """
-    template_name = 'hello-template'
+    # Ensure template exists before sending
+    if not ensure_template_exists(template_name):
+        print(f'Failed to ensure template "{template_name}" exists.')
+        return None
 
     message = {
         'from_email': os.getenv('DEFAULT_FROM_EMAIL', 'test@example.org'),
@@ -148,7 +246,8 @@ def send_template_to_multiple_recipients():
     ]
 
     try:
-        result = mailchimp.messages.send_template({
+        client = get_mailchimp_client()
+        result = client.messages.send_template({
             'template_name': template_name,
             'template_content': template_content,
             'message': message
@@ -178,9 +277,12 @@ if __name__ == '__main__':
         print('Please create a .env file with your Mandrill API key.')
         exit(1)
 
-    print('Sending email with template...\n')
-    send_with_template()
+    # Use SELECTED_TEMPLATE from environment or default to template1
+    template_name = os.getenv('SELECTED_TEMPLATE', 'template1')
+
+    print(f'Sending email with template: {template_name}...\n')
+    send_with_template(template_name)
 
     # Uncomment to test multiple recipients
     # print('\n\nSending template to multiple recipients...\n')
-    # send_template_to_multiple_recipients()
+    # send_template_to_multiple_recipients(template_name)

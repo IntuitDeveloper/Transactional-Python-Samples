@@ -16,10 +16,49 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import mailchimp_transactional as MailchimpTransactional
 from mailchimp_transactional.api_client import ApiClientError
 from config import MANDRILL_API_KEY, DEFAULT_FROM_EMAIL, DEFAULT_FROM_NAME, DEFAULT_TO_EMAIL, DEFAULT_TO_NAME
+from email_with_template import TEMPLATES
 import requests
 import urllib.parse
 import json
 from functools import wraps
+
+
+def template_exists(template_name):
+    """
+    Check if a template exists in Mandrill.
+    Uses MANDRILL_API_KEY from config.py for consistency.
+    """
+    try:
+        client = MailchimpTransactional.Client(MANDRILL_API_KEY)
+        # Call without the label parameter for simpler request
+        templates = client.templates.list()
+        
+        # Debug: print what we're getting back
+        print(f"DEBUG templates type: {type(templates)}")
+        if templates:
+            print(f"DEBUG first item type: {type(templates[0]) if len(templates) > 0 else 'empty'}")
+        
+        # Handle case where API returns bytes
+        if isinstance(templates, bytes):
+            templates = json.loads(templates.decode('utf-8'))
+        elif isinstance(templates, str):
+            templates = json.loads(templates)
+        
+        # Now iterate
+        if isinstance(templates, list):
+            for t in templates:
+                # Handle if individual items are bytes/str
+                if isinstance(t, (bytes, str)):
+                    t = json.loads(t if isinstance(t, str) else t.decode('utf-8'))
+                if isinstance(t, dict) and t.get('name') == template_name:
+                    return True
+        return False
+    except ApiClientError as e:
+        print(f"API Error checking template: {e}")
+        return False
+    except Exception as e:
+        print(f"Error checking template existence: {e}")
+        return False
 
 app = Flask(__name__, 
     static_folder='static',
@@ -388,8 +427,12 @@ def send_email_with_template():
         mailchimp = MailchimpTransactional.Client(MANDRILL_API_KEY)
         template_name = request.form['template_name']
         print("Selected template::::::: " + template_name)
+        
         # Ensure the template exists, create if not available
         createTemplate(template_name)
+
+        # Get template definition for mc:edit region name
+        template_def = TEMPLATES.get(template_name, TEMPLATES['template1'])
 
         # Prepare template content by giving the actual data for the template
         message = {
@@ -416,19 +459,20 @@ def send_email_with_template():
             'merge_language': 'handlebars',
             'tags': ['onboarding', 'welcome']
         }
-        #replace with actual data for the template
+        
+        # Template content for mc:edit regions - use correct region name based on template
         if template_name == 'template1':
             template_content = [
                 {
                     'name': 'welcome_message',
-                    'content': "<hr><p>Thanks for joining <strong>{{company_name}}</strong>! We're excited to have you on board.</p><p><p><p><hr>This email is generated for pre-designed template, generated for template1<hr>"
+                    'content': "<hr><p>Thanks for joining <strong>{{company_name}}</strong>! We're excited to have you on board.</p><hr>This email is generated for pre-designed template, generated for template1<hr>"
                 }
             ]
         else:
             template_content = [
                 {
                     'name': 'goodbye_message',
-                    'content': "<hr><p>We dont have much updates, but this email is for your account: {{account_id}} in company: {{company_name}}<hr></strong>"
+                    'content': "<hr><p>We don't have much updates, but this email is for your account: {{account_id}} in company: {{company_name}}</p><hr>"
                 }
             ]
 
@@ -509,38 +553,28 @@ def createTemplate(templateName):
     """
     try:
         mailchimp = MailchimpTransactional.Client(MANDRILL_API_KEY)
-        # Retrieve the list of existing templates from Mailchimp
-        existing_templates = mailchimp.templates.list()
+        
         # Check if a template with the given name already exists
-        if any(t['name'] == templateName for t in existing_templates):
+        if template_exists(templateName):
             flash(f'Template "{templateName}" already exists. No new template created.', 'warning')
         else:
-            # Define template content and subject based on the template name
-            if templateName == "template1":
-                code = '''<h1>Hello {{fname}}!</h1>
-                    <div mc:edit="welcome_message">
-                    <p>Welcome to {{company_name}}.</p>
-                    </div>
-                    <p>Your account: {{account_id}}</p>'''
-                subject = 'Hello {{fname}}!'
-                text = 'This is a simple greetings from template1.'
-            else:
-                code = '''<h1>Greetings {{fname}}!</h1>,  <br/>Hope your Account: {{account_id}} is all set in Company:{{company_name}} <div mc:edit="goodbye_message">
-                    <p>We will see you soon {{company_name}}.</p>
-                    </div>'''
-                subject = 'Greetings {{fname}}!'
-                text = 'This is a simple greetings from template2.'
+            # Get template definition from shared TEMPLATES dict
+            if templateName not in TEMPLATES:
+                flash(f'Unknown template: {templateName}', 'error')
+                return
+            
+            template_def = TEMPLATES[templateName]
 
             # Construct the template data payload for the API
             template_data = {
                 'name': templateName,
                 'from_email': DEFAULT_FROM_EMAIL,
                 'from_name': DEFAULT_FROM_NAME,
-                'subject': subject,
-                'code': code,
-                'text': text,
+                'subject': template_def['subject'],
+                'code': template_def['code'],
+                'text': template_def['text'],
                 'publish': False,
-                'labels': ['hello', 'demo']
+                'labels': template_def['labels']
             }
             # Create the template using the Mailchimp API
             response = mailchimp.templates.add(template_data)

@@ -20,32 +20,84 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Initialize the API client
-mailchimp = MailchimpTransactional.Client(os.getenv('MANDRILL_API_KEY'))
 
-def create_template():
+def get_mailchimp_client():
     """
-    Create a basic email template.
+    Get a Mailchimp Transactional client.
     """
+    api_key = os.getenv('MANDRILL_API_KEY')
+    if not api_key:
+        raise ValueError("MANDRILL_API_KEY not found in environment variables")
+    return MailchimpTransactional.Client(api_key)
+
+
+# Template definitions matching the Mandrill account
+TEMPLATES = {
+    'template1': {
+        'name': 'template1',
+        'subject': 'Hello {{fname}}!',
+        'code': '''<h1>Hello {{fname}}!</h1>
+                <div mc:edit="welcome_message">
+                  <p>Welcome to {{company_name}}.</p>
+                </div>
+                <p>Your account: {{account_id}}</p>''',
+        'text': 'This is a simple greetings from template1.',
+        'labels': ['demo', 'hello']
+    },
+    'template2': {
+        'name': 'template2',
+        'subject': 'Greetings {{fname}}!',
+        'code': '''<h1>Greetings {{fname}}!</h1>
+                <p>Hope your Account: {{account_id}} is all set in Company: {{company_name}}</p>
+                <div mc:edit="goodbye_message">
+                  <p>We will see you soon {{company_name}}.</p>
+                </div>''',
+        'text': 'This is a simple greetings from template2.',
+        'labels': ['demo', 'hello']
+    }
+}
+
+
+def template_exists(template_name):
+    """
+    Check if a template exists in Mandrill.
+    """
+    try:
+        client = get_mailchimp_client()
+        templates = client.templates.list({'label': ''})
+        return any(t['name'] == template_name for t in templates)
+    except ApiClientError:
+        return False
+
+
+def create_template(template_name):
+    """
+    Create a template if it doesn't already exist.
+    """
+    if template_exists(template_name):
+        print(f'Template "{template_name}" already exists.')
+        return {'success': True, 'exists': True}
+    
+    if template_name not in TEMPLATES:
+        print(f'Unknown template: {template_name}')
+        return {'success': False, 'error': f'Unknown template: {template_name}'}
+    
+    template_def = TEMPLATES[template_name]
+    
     template_data = {
-        'name': 'hello-template',
+        'name': template_def['name'],
         'from_email': os.getenv('DEFAULT_FROM_EMAIL', 'test@example.org'),
         'from_name': os.getenv('DEFAULT_FROM_NAME', 'Test Sender'),
-        'subject': 'Hello {{fname}}!',
-        'code': '''
-            <h1>Hello {{fname}}!</h1>
-            <div mc:edit="welcome_message">
-                <p>Welcome to {{company_name}}.</p>
-            </div>
-            <p>Your account: {{account_id}}</p>
-        ''',
-        'text': 'Hello {{fname}}!\n\nWelcome to {{company_name}}.\nYour account: {{account_id}}',
+        'subject': template_def['subject'],
+        'code': template_def['code'],
+        'text': template_def['text'],
         'publish': False,
-        'labels': ['hello', 'demo']
+        'labels': template_def['labels']
     }
     
     try:
-        response = mailchimp.templates.add(template_data)
+        client = get_mailchimp_client()
+        response = client.templates.add(template_data)
         
         print('Template created successfully!')
         print('=' * 50)
@@ -59,101 +111,32 @@ def create_template():
             print('Status: Draft (not published)')
         
         print('=' * 50)
-        return response
+        return {'success': True, 'exists': False, 'result': response}
         
     except ApiClientError as error:
         print('Error creating template!')
         print('=' * 50)
         print(f'Mandrill API Error: {error.text}')
-        
-        if 'A template with that name already exists' in str(error.text):
-            print('\nA template with this name already exists.')
-            print('Try using a different name or delete the existing template.')
-        
         print('=' * 50)
-        return None
+        return {'success': False, 'error': error.text}
 
-def create_advanced_template():
+
+def ensure_template_exists(template_name):
     """
-    Create a template with advanced features and styling.
+    Ensure a template exists, creating it if necessary.
+    Returns True if template exists or was created successfully.
     """
-    template_data = {
-        'name': 'welcome-email-advanced',
-        'from_email': os.getenv('DEFAULT_FROM_EMAIL', 'welcome@example.org'),
-        'from_name': 'Welcome Team',
-        'subject': 'Welcome {{fname}} - Get Started with {{company_name}}',
-        'code': '''
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0; }
-                    .header { background: #007bff; color: white; padding: 20px; text-align: center; }
-                    .content { padding: 20px; }
-                    .button { 
-                        background: #28a745; 
-                        color: white; 
-                        padding: 12px 24px; 
-                        text-decoration: none;
-                        border-radius: 5px;
-                        display: inline-block;
-                        margin: 10px 0;
-                    }
-                    .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h1>Welcome to {{company_name}}!</h1>
-                </div>
-                <div class="content">
-                    <h2>Hi {{fname}} {{lname}},</h2>
-                    <div mc:edit="main_content">
-                        <p>We're thrilled to have you join us! Your account is now active and ready to use.</p>
-                        <p>Account ID: <strong>{{account_id}}</strong></p>
-                    </div>
-                    <div mc:edit="cta_section">
-                        <p><a href="{{dashboard_url}}" class="button">Go to Dashboard</a></p>
-                    </div>
-                </div>
-                <div class="footer">
-                    <p>&copy; {{current_year}} {{company_name}}. All rights reserved.</p>
-                    <p><a href="{{unsubscribe_url}}" style="color: #666;">Unsubscribe</a></p>
-                </div>
-            </body>
-            </html>
-        ''',
-        'text': '''
-            Welcome to {{company_name}}!
-            
-            Hi {{fname}} {{lname}},
-            
-            We're thrilled to have you join us! Your account is now active and ready to use.
-            Account ID: {{account_id}}
-            
-            Go to your dashboard: {{dashboard_url}}
-            
-            © {{current_year}} {{company_name}}. All rights reserved.
-            Unsubscribe: {{unsubscribe_url}}
-        ''',
-        'publish': False,
-        'labels': ['welcome', 'onboarding', 'advanced']
-    }
-    
-    try:
-        response = mailchimp.templates.add(template_data)
-        print(f"Advanced template created: {response['name']}")
-        return response
-    except ApiClientError as error:
-        print(f'Error: {error.text}')
-        return None
+    result = create_template(template_name)
+    return result['success']
+
 
 def list_templates():
     """
     List all templates in your account.
     """
     try:
-        templates = mailchimp.templates.list({'label': ''})
+        client = get_mailchimp_client()
+        templates = client.templates.list({'label': ''})
         
         print('Your Mandrill Templates:')
         print('=' * 50)
@@ -174,12 +157,14 @@ def list_templates():
         print(f'Error: {error.text}')
         return None
 
+
 def get_template_info(template_name):
     """
     Get detailed information about a specific template.
     """
     try:
-        info = mailchimp.templates.info({'name': template_name})
+        client = get_mailchimp_client()
+        info = client.templates.info({'name': template_name})
         
         print(f'Template Information:')
         print('=' * 50)
@@ -199,17 +184,20 @@ def get_template_info(template_name):
         print(f'Error: {error.text}')
         return None
 
+
 def delete_template(template_name):
     """
     Delete a template (use with caution).
     """
     try:
-        response = mailchimp.templates.delete({'name': template_name})
+        client = get_mailchimp_client()
+        response = client.templates.delete({'name': template_name})
         print(f"Template deleted: {template_name}")
         return response
     except ApiClientError as error:
         print(f'Error: {error.text}')
         return None
+
 
 if __name__ == '__main__':
     # Check if API key is configured
@@ -218,21 +206,15 @@ if __name__ == '__main__':
         print('Please create a .env file with your Mandrill API key.')
         exit(1)
     
-    print('Creating email template...\n')
-    create_template()
+    print('Creating email templates...\n')
+    
+    # Create template1
+    print('Creating template1...')
+    create_template('template1')
+    
+    # Create template2
+    print('\nCreating template2...')
+    create_template('template2')
     
     print('\n\nListing all templates...\n')
     list_templates()
-    
-    # Uncomment to create an advanced template
-    # print('\n\nCreating advanced template...\n')
-    # create_advanced_template()
-    
-    # Uncomment to get info about a specific template
-    # print('\n\nGetting template info...\n')
-    # get_template_info('hello-template')
-    
-    # Uncomment to delete a template (use with caution!)
-    # print('\n\nDeleting template...\n')
-    # delete_template('hello-template')
-
