@@ -56,10 +56,12 @@ All dependencies are listed in `requirements.txt`.
    ```env
    MANDRILL_API_KEY=your-mailchimp-transactional-api-key
    DEFAULT_FROM_EMAIL=your-from-email@example.com
-   DEFAULT_FROM_NAME=Your Name
+   DEFAULT_FROM_NAME="Your Name"
    DEFAULT_TO_EMAIL=recipient@example.com
-   DEFAULT_TO_NAME=Recipient Name
+   DEFAULT_TO_NAME="Recipient Name"
    ```
+   
+   > **Note:** Always quote values that contain spaces or special characters.
 
 4. **(Optional) Add sample attachments**
    - Place a `sample.pdf` file in the `FlaskApp` directory for attachment demos.

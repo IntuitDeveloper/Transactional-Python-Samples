@@ -31,13 +31,15 @@ cp env.example .env
 
 2. Edit the `.env` file and add your credentials:
 
-```
+```env
 MANDRILL_API_KEY=your_mandrill_api_key_here
 DEFAULT_FROM_EMAIL=sender@yourdomain.com
-DEFAULT_FROM_NAME=Your Name
+DEFAULT_FROM_NAME="Your Name"
 DEFAULT_TO_EMAIL=recipient@example.com
-DEFAULT_TO_NAME=Recipient Name
+DEFAULT_TO_NAME="Recipient Name"
 ```
+
+> **Note:** Always quote values that contain spaces or special characters.
 
 ## Available Python Scripts
 
