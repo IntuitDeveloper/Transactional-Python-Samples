@@ -252,6 +252,8 @@ def testEmailbasedOnScriptID():
             script_run_status = send_email_with_template()
         elif script_name == 'allInOne':
             script_run_status = send_bulk_email()
+        elif script_name == 'sms':
+            script_run_status = send_sms_message()
         else:
             flash('Invalid script selected. Please try again.', 'error')
             return redirect(url_for('index'))
@@ -490,6 +492,94 @@ def send_email_with_template():
             return f"Unexpected result structure: {result}"
     except ApiClientError as error:
         return f"Mailchimp error: {error.__class__.__name__} - {error.text}"
+
+def send_sms_message():
+    """
+    Send an SMS message using Mailchimp Transactional API (Mandrill).
+
+    Technical Documentation:
+    - This function uses the Mandrill REST API v1.1 directly since the Python SDK
+      doesn't include the send_sms method yet.
+    - SMS messages are sent via POST to /api/1.1/messages/send-sms
+    - Requires a verified sender phone number in your Mandrill account.
+
+    User Documentation:
+    - Use this function to send an SMS to a single recipient.
+    - The recipient phone number and message can be provided via the web form.
+    - Phone numbers must be in E.164 format (e.g., +1234567890).
+    """
+    import os
+    
+    # SMS API endpoint (note: uses API version 1.1, not 1.0)
+    SMS_API_ENDPOINT = 'https://mandrillapp.com/api/1.1/messages/send-sms'
+    
+    try:
+        api_key = MANDRILL_API_KEY
+        
+        if not api_key:
+            return "Error: MANDRILL_API_KEY not configured"
+        
+        # Get values from form or environment
+        to_phone = request.form.get('smsToPhone') or os.getenv('SMS_TO_PHONE', '+1234567890')
+        from_phone = os.getenv('SMS_FROM_PHONE', '+0987654321')
+        message_text = request.form.get('smsMessage') or os.getenv('SMS_MESSAGE', 'Hello from Mandrill SMS!')
+        consent_type = os.getenv('SMS_CONSENT_TYPE', 'onetime')
+        track_clicks = os.getenv('SMS_TRACK_CLICKS', 'false').lower() == 'true'
+        
+        payload = {
+            'key': api_key,
+            'message': {
+                'sms': {
+                    'text': message_text,
+                    'to': to_phone,
+                    'from': from_phone,
+                    'consent': consent_type,
+                    'track_clicks': track_clicks
+                }
+            }
+        }
+        
+        # Send the request
+        response = requests.post(
+            SMS_API_ENDPOINT,
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            print('SMS sent successfully:', result)
+            
+            if isinstance(result, list) and len(result) > 0:
+                first_result = result[0]
+                status = first_result.get('status', 'unknown')
+                to = first_result.get('to', to_phone)
+                msg_id = first_result.get('_id', 'N/A')
+                
+                if first_result.get('reject_reason'):
+                    return f"SMS to {to}: {status} (Reason: {first_result['reject_reason']})"
+                
+                return f"📱 SMS Status: {status}<br>To: {to}<br>Message ID: {msg_id}"
+            else:
+                return f"SMS sent! Response: {result}"
+        else:
+            error_msg = response.text
+            try:
+                error_data = response.json()
+                if isinstance(error_data, dict):
+                    error_msg = error_data.get('message', error_data.get('name', response.text))
+            except:
+                pass
+            return f"SMS failed (HTTP {response.status_code}): {error_msg}"
+            
+    except requests.exceptions.Timeout:
+        return "SMS Error: Request timed out"
+    except requests.exceptions.SSLError as e:
+        return f"SMS SSL Error: {e}. Try setting SSL_VERIFY=false in .env"
+    except Exception as e:
+        return f"SMS Error: {str(e)}"
+
 
 def send_email_with_template_backup():
     try:
